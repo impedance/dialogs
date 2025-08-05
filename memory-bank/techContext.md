@@ -6,11 +6,12 @@
 - Requests library for HTTP operations
 
 ## Development Setup
-1. Python virtual environment recommended
+1. Python virtual environment recommended (always use python3 command explicitly)
 2. Required packages:
    ```bash
-   pip install requests python-dotenv
+   pip3 install requests python-dotenv
    ```
+3. All scripts and tests must be run with python3, never with python (which may default to Python 2.7)
 3. Environment variables needed:
    - BITRIX_WEBHOOK_URL
    - BITRIX_AUTH_TOKEN
