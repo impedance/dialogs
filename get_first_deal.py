@@ -63,23 +63,53 @@ class Bitrix24DealExtractor:
         }
         result = self.make_request('crm.deal.list', params)
         return result[0] if result else {}
+
+    def get_all_deals(self):
+        """
+        Retrieve all deals using pagination.
+
+        Returns:
+            list: List of all deal dictionaries
+        """
+        all_deals = []
+        start = 0
+        while True:
+            params = {
+                'order': {'DATE_CREATE': 'ASC'},
+                'select': ['ID', 'TITLE', 'STAGE_ID', 'OPPORTUNITY', 'DATE_CREATE'],
+                'start': start
+            }
+            batch = self.make_request('crm.deal.list', params)
+            if not isinstance(batch, list) or not batch:
+                break
+            all_deals.extend(batch)
+            start += len(batch)
+        return all_deals
     
     def get_deal_dialogues(self, deal_id):
         """
-        Get dialogues associated with a deal
-        
+        Get all dialogues associated with a deal using pagination
+
         Args:
             deal_id: ID of the deal
-            
+
         Returns:
-            list: List of message dictionaries
+            list: List of all message dictionaries
         """
-        params = {
-            'filter': {'ENTITY_ID': deal_id, 'ENTITY_TYPE': 'DEAL'},
-            'select': ['COMMENT', 'CREATED', 'AUTHOR_ID']
-        }
-        result = self.make_request('crm.timeline.comment.list', params)
-        return result if isinstance(result, list) else []
+        messages = []
+        start = 0
+        while True:
+            params = {
+                'filter': {'ENTITY_ID': deal_id, 'ENTITY_TYPE': 'DEAL'},
+                'select': ['COMMENT', 'CREATED', 'AUTHOR_ID'],
+                'start': start
+            }
+            batch = self.make_request('crm.timeline.comment.list', params)
+            if not isinstance(batch, list) or not batch:
+                break
+            messages.extend(batch)
+            start += len(batch)
+        return messages
     
     def print_deal_details(self, deal):
         """Print formatted deal information"""
@@ -117,9 +147,11 @@ class Bitrix24DealExtractor:
 def main():
     WEBHOOK_URL = "https://b24-mwh5lj.bitrix24.ru/rest/1/zutp42hzvz9lyl8h/"
     extractor = Bitrix24DealExtractor(WEBHOOK_URL)
-    
-    deal = extractor.get_first_deal()
-    if deal:
+
+    deals = extractor.get_all_deals()
+    if not deals:
+        print("No deals found")
+    for deal in deals:
         extractor.print_deal_details(deal)
         messages = extractor.get_deal_dialogues(deal['ID'])
         extractor.print_dialogues(messages)
