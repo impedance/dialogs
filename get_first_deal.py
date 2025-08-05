@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import requests
 import json
+import re
 from datetime import datetime
+from typing import Optional
 
 class Bitrix24DealExtractor:
     def __init__(self, webhook_url, disable_proxy=True, verify_ssl=True):
@@ -81,6 +83,23 @@ class Bitrix24DealExtractor:
         result = self.make_request('crm.timeline.comment.list', params)
         return result if isinstance(result, list) else []
     
+    def _clean_and_filter_comment(self, text: str) -> Optional[str]:
+        """
+        Filters out system messages and cleans BBCode-like tags from comments.
+
+        Args:
+            text: The raw comment text.
+
+        Returns:
+            The cleaned comment text, or None if the message should be filtered out.
+        """
+        if not text or "=== SYSTEM WZ ===" in text:
+            return None
+        
+        # Remove [img]...[/img] tags and the subsequent &nbsp;
+        cleaned_text = re.sub(r'\[img\].*?\[/img\]&nbsp;\s*', '', text)
+        return cleaned_text.strip()
+    
     def print_deal_details(self, deal):
         """Print formatted deal information"""
         print("\n=== Deal Details ===")
@@ -103,13 +122,16 @@ class Bitrix24DealExtractor:
         print("\n=== Associated Dialogues ===")
         for msg in messages:
             try:
-                date_str = msg.get('CREATED', '')
-                date = datetime.fromisoformat(date_str).strftime('%Y-%m-%d %H:%M:%S') if date_str else 'N/A'
-                author = msg.get('AUTHOR_ID', 'N/A')
-                text = msg.get('COMMENT', 'No message text')
-                print(f"[{date}] User {author}:")
-                print(text)
-                print()
+                raw_text = msg.get('COMMENT', '')
+                cleaned_text = self._clean_and_filter_comment(raw_text)
+
+                if cleaned_text:
+                    date_str = msg.get('CREATED', '')
+                    date = datetime.fromisoformat(date_str).strftime('%Y-%m-%d %H:%M:%S') if date_str else 'N/A'
+                    author = msg.get('AUTHOR_ID', 'N/A')
+                    print(f"[{date}] User {author}:")
+                    print(cleaned_text)
+                    print()
             except Exception as e:
                 print(f"Error formatting message: {e}")
                 continue
