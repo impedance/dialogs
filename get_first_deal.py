@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import requests
 import json
 from datetime import datetime
@@ -130,18 +131,25 @@ class Bitrix24DealExtractor:
             print("\nNo dialogues found")
             return
             
-        print("\n=== Associated Dialogues ===")
         for msg in messages:
             try:
                 date_str = msg.get('CREATED', '')
                 date = datetime.fromisoformat(date_str).strftime('%Y-%m-%d %H:%M:%S') if date_str else 'N/A'
                 author = msg.get('AUTHOR_ID', 'N/A')
                 text = msg.get('COMMENT', 'No message text')
+                
+                # Skip video messages
+                if '[url=' in text:
+                    continue
+                    
+                # Remove [img] tags and &nbsp;
+                text = text.replace('&nbsp;', '')
+                text = re.sub(r'\[img\].*?\[\/img\]', '', text)
+                
                 print(f"[{date}] User {author}:")
-                print(text)
-                print()
+                print(text.strip())
+                
             except Exception as e:
-                print(f"Error formatting message: {e}")
                 continue
 
 def main():
