@@ -151,10 +151,28 @@ def main():
     deals = extractor.get_all_deals()
     if not deals:
         print("No deals found")
+        return
+    
+    deals_with_dialogues = 0
+    
     for deal in deals:
-        extractor.print_deal_details(deal)
-        messages = extractor.get_deal_dialogues(deal['ID'])
-        extractor.print_dialogues(messages)
+        try:
+            messages = extractor.get_deal_dialogues(deal['ID'])
+            if not messages:
+                continue  # Skip deals without dialogues
+                
+            extractor.print_deal_details(deal)
+            extractor.print_dialogues(messages)
+            deals_with_dialogues += 1
+            
+        except Exception as e:
+            print(f"Skipping deal {deal['ID']} due to error: {e}")
+            continue
+    
+    if deals_with_dialogues == 0:
+        print("\nNo deals with dialogues found")
+    else:
+        print(f"\nFound {deals_with_dialogues} deals with dialogues")
 
 if __name__ == "__main__":
     main()
