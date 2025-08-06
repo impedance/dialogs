@@ -138,8 +138,8 @@ class Bitrix24DealExtractor:
                 author = msg.get('AUTHOR_ID', 'N/A')
                 text = msg.get('COMMENT', 'No message text')
                 
-                # Skip video messages
-                if '[url=' in text:
+                # Skip video messages and system messages
+                if '[url=' in text or '=== SYSTEM WZ ===' in text:
                     continue
                     
                 # Remove [img] tags and &nbsp;
