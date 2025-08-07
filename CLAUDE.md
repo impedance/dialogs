@@ -61,3 +61,7 @@ Standard library only:
 - datetime
 - csv
 - urllib3 (for SSL warning suppression)
+
+
+https://github.com/bitrix-tools/b24-rest-docs
+https://apidocs.bitrix24.ru/
