@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import requests
 import json
 import re
@@ -65,40 +66,53 @@ class Bitrix24DealExtractor:
         }
         result = self.make_request('crm.deal.list', params)
         return result[0] if result else {}
+
+    def get_all_deals(self):
+        """
+        Retrieve all deals using pagination.
+
+        Returns:
+            list: List of all deal dictionaries
+        """
+        all_deals = []
+        start = 0
+        while True:
+            params = {
+                'order': {'DATE_CREATE': 'ASC'},
+                'select': ['ID', 'TITLE', 'STAGE_ID', 'OPPORTUNITY', 'DATE_CREATE'],
+                'start': start
+            }
+            batch = self.make_request('crm.deal.list', params)
+            if not isinstance(batch, list) or not batch:
+                break
+            all_deals.extend(batch)
+            start += len(batch)
+        return all_deals
     
     def get_deal_dialogues(self, deal_id):
         """
-        Get dialogues associated with a deal
-        
+        Get all dialogues associated with a deal using pagination
+
         Args:
             deal_id: ID of the deal
-            
-        Returns:
-            list: List of message dictionaries
-        """
-        params = {
-            'filter': {'ENTITY_ID': deal_id, 'ENTITY_TYPE': 'DEAL'},
-            'select': ['COMMENT', 'CREATED', 'AUTHOR_ID']
-        }
-        result = self.make_request('crm.timeline.comment.list', params)
-        return result if isinstance(result, list) else []
-    
-    def _clean_and_filter_comment(self, text: str) -> Optional[str]:
-        """
-        Filters out system messages and cleans BBCode-like tags from comments.
-
-        Args:
-            text: The raw comment text.
 
         Returns:
-            The cleaned comment text, or None if the message should be filtered out.
+            list: List of all message dictionaries
         """
-        if not text or "=== SYSTEM WZ ===" in text:
-            return None
-        
-        # Remove [img]...[/img] tags and the subsequent &nbsp;
-        cleaned_text = re.sub(r'\[img\].*?\[/img\]&nbsp;\s*', '', text)
-        return cleaned_text.strip()
+        messages = []
+        start = 0
+        while True:
+            params = {
+                'filter': {'ENTITY_ID': deal_id, 'ENTITY_TYPE': 'DEAL'},
+                'select': ['COMMENT', 'CREATED', 'AUTHOR_ID'],
+                'start': start
+            }
+            batch = self.make_request('crm.timeline.comment.list', params)
+            if not isinstance(batch, list) or not batch:
+                break
+            messages.extend(batch)
+            start += len(batch)
+        return messages
     
     def print_deal_details(self, deal):
         """Print formatted deal information"""
@@ -119,32 +133,56 @@ class Bitrix24DealExtractor:
             print("\nNo dialogues found")
             return
             
-        print("\n=== Associated Dialogues ===")
         for msg in messages:
             try:
-                raw_text = msg.get('COMMENT', '')
-                cleaned_text = self._clean_and_filter_comment(raw_text)
-
-                if cleaned_text:
-                    date_str = msg.get('CREATED', '')
-                    date = datetime.fromisoformat(date_str).strftime('%Y-%m-%d %H:%M:%S') if date_str else 'N/A'
-                    author = msg.get('AUTHOR_ID', 'N/A')
-                    print(f"[{date}] User {author}:")
-                    print(cleaned_text)
-                    print()
+                date_str = msg.get('CREATED', '')
+                date = datetime.fromisoformat(date_str).strftime('%Y-%m-%d %H:%M:%S') if date_str else 'N/A'
+                author = msg.get('AUTHOR_ID', 'N/A')
+                text = msg.get('COMMENT', 'No message text')
+                
+                # Skip video messages and system messages
+                if '[url=' in text or '=== SYSTEM WZ ===' in text:
+                    continue
+                    
+                # Remove [img] tags and &nbsp;
+                text = text.replace('&nbsp;', '')
+                text = re.sub(r'\[img\].*?\[\/img\]', '', text)
+                
+                print(f"[{date}] User {author}:")
+                print(text.strip())
+                
             except Exception as e:
-                print(f"Error formatting message: {e}")
                 continue
 
 def main():
     WEBHOOK_URL = "https://b24-mwh5lj.bitrix24.ru/rest/1/zutp42hzvz9lyl8h/"
     extractor = Bitrix24DealExtractor(WEBHOOK_URL)
+
+    deals = extractor.get_all_deals()
+    if not deals:
+        print("No deals found")
+        return
     
-    deal = extractor.get_first_deal()
-    if deal:
-        extractor.print_deal_details(deal)
-        messages = extractor.get_deal_dialogues(deal['ID'])
-        extractor.print_dialogues(messages)
+    deals_with_dialogues = 0
+    
+    for deal in deals:
+        try:
+            messages = extractor.get_deal_dialogues(deal['ID'])
+            if not messages:
+                continue  # Skip deals without dialogues
+                
+            extractor.print_deal_details(deal)
+            extractor.print_dialogues(messages)
+            deals_with_dialogues += 1
+            
+        except Exception as e:
+            print(f"Skipping deal {deal['ID']} due to error: {e}")
+            continue
+    
+    if deals_with_dialogues == 0:
+        print("\nNo deals with dialogues found")
+    else:
+        print(f"\nFound {deals_with_dialogues} deals with dialogues")
 
 if __name__ == "__main__":
     main()
